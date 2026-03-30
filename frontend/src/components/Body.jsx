@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { useAuthContext } from "@asgardeo/auth-react";
 
 const Body = () => {
   const [puppies, setPuppies] = useState([]);
@@ -8,21 +9,28 @@ const Body = () => {
     breed: "",
     age: "",
   });
+  const [editId, setEditId] = useState(null);
 
+  const { getAccessToken, state } = useAuthContext();
   const apiUrl = import.meta.env.VITE_API_BASE_URL;
 
   const fetchPuppies = async () => {
-    try {
-      const response = await axios.get(apiUrl);
-      setPuppies(response.data);
-    } catch (error) {
-      console.error("Error fetching puppies:", error);
-    }
+    const token = await getAccessToken();
+
+    const response = await axios.get(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    setPuppies(response.data);
   };
 
   useEffect(() => {
-    fetchPuppies();
-  }, []);
+    if (state?.isAuthenticated) {
+      fetchPuppies();
+    }
+  }, [state?.isAuthenticated]);
 
   const handleChange = (e) => {
     setFormData({
@@ -31,44 +39,77 @@ const Body = () => {
     });
   };
 
+  const handleEdit = (puppy) => {
+    setFormData({
+      name: puppy.name,
+      breed: puppy.breed,
+      age: puppy.age,
+    });
+    setEditId(puppy.id);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log("handleSubmit fired");
 
-    try {
-      await axios.post(apiUrl, {
-        name: formData.name,
-        breed: formData.breed,
-        age: Number(formData.age),
-      });
+    const token = await getAccessToken();
 
-      setFormData({
-        name: "",
-        breed: "",
-        age: "",
-      });
+    if (editId) {
+      await axios.put(
+        `${apiUrl}/${editId}`,
+        {
+          name: formData.name,
+          breed: formData.breed,
+          age: Number(formData.age),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-      fetchPuppies();
-    } catch (error) {
-      console.error("Error adding puppy:", error);
+      setEditId(null);
+    } else {
+      await axios.post(
+        apiUrl,
+        {
+          name: formData.name,
+          breed: formData.breed,
+          age: Number(formData.age),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
     }
+
+    setFormData({
+      name: "",
+      breed: "",
+      age: "",
+    });
+
+    fetchPuppies();
   };
 
   const handleDelete = async (id) => {
-    try {
-      await axios.delete(`${apiUrl}/${id}`);
-      fetchPuppies();
-    } catch (error) {
-      console.error("Error deleting puppy:", error);
-    }
+    const token = await getAccessToken();
+
+    await axios.delete(`${apiUrl}/${id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    fetchPuppies();
   };
 
   return (
     <main className="body">
       <h2>Puppy Records</h2>
-
-      <div className="button-group">
-        <button type="button">Add Puppy</button>
-      </div>
 
       <form className="puppy-form" onSubmit={handleSubmit}>
         <input
@@ -95,7 +136,9 @@ const Body = () => {
           onChange={handleChange}
           required
         />
-        <button type="submit">Submit</button>
+        <button type="submit">
+          {editId ? "Update Puppy" : "Submit"}
+        </button>
       </form>
 
       <table className="puppy-table">
@@ -116,7 +159,9 @@ const Body = () => {
               <td>{puppy.breed}</td>
               <td>{puppy.age}</td>
               <td>
-                <button type="button">Edit</button>
+                <button type="button" onClick={() => handleEdit(puppy)}>
+                  Edit
+                </button>
                 <button type="button" onClick={() => handleDelete(puppy.id)}>
                   Delete
                 </button>

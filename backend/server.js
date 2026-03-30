@@ -35,10 +35,18 @@ const verifyToken = (req, res, next) => {
       return res.status(401).json({ error: "Invalid token" });
     }
 
-    req.user = decoded;
+    console.log("Decoded token:", decoded);
 
-    // IMPORTANT: Asgardeo attribute selected = userid
-    req.user.userId = decoded.userid;
+    req.user = decoded;
+    req.user.userId =
+      decoded.sub ||
+      decoded.userid ||
+      decoded.username ||
+      decoded.email;
+
+    if (!req.user.userId) {
+      return res.status(400).json({ error: "No usable user identifier found in token" });
+    }
 
     next();
   } catch (err) {
